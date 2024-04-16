@@ -1,13 +1,10 @@
 #include <gst/gst.h>
 
 int main(int argc, char *argv[]) {
-		GstElement *pipeline, *src, *src2, *conv1, *conv2, *sink, *comp;
-		GstCaps *caps_1, *caps_2, *caps_3 , *caps_4;
 		GstBus *bus;
 		GstMessage *msg;
 		GstStateChangeReturn ret;
-		GstPad *conv1_sink_pad, *conv1_src_pad;
-		GstElement *pipeline, *src, *src2, *conv1, *conv2, *sink, *comp;
+		GstElement *pipeline ,*comp,*video_test_src, *v4l2_src, *nvvidconv1, *nvvidconv2, *nvvidconv3, *video_convert, *main_sink;
 
 		/* Initialize GStreamer */
 		gst_init(&argc, &argv);
@@ -15,23 +12,65 @@ int main(int argc, char *argv[]) {
 		/* Create the elements */
 		pipeline = gst_pipeline_new("video-pipeline");
 		comp = gst_element_factory_make("nvcompositor", "comp");
-		video_test_src = gst_element_factory_make("videotestsrc", "src");
-		v4l2_src = gst_element_factory_make("v4l2src", "src2");
+		video_test_src = gst_element_factory_make("videotestsrc", "video_test_src");
+		v4l2_src = gst_element_factory_make("v4l2src", "v4l2_src");
 		nvvidconv1 = gst_element_factory_make("nvvidconv", "nvvidconv1");
 		nvvidconv2 = gst_element_factory_make("nvvidconv", "nvvidconv2");
 		nvvidconv3 = gst_element_factory_make("nvvidconv", "nvvidconv3");
 		video_convert = gst_element_factory_make("videoconvert", "video_convert"); // Convert to non-NVMM format
-		sink = gst_element_factory_make("nv3dsink", "sink");
+		main_sink = gst_element_factory_make("nv3dsink", "main_sink");
 
 		/* Check elements creation */
-		if (!pipeline || !comp || !src || !src2 || !conv1 || !conv2 || !sink) {
+		if (!pipeline || !comp || !video_test_src || !v4l2_src || !nvvidconv1 || !nvvidconv2 || !nvvidconv3 || !video_convert || !main_sink) {
 				g_printerr("One or more elements could not be created. Exiting.\n");
 				return -1;
 		}
 
+		GstCaps * rgba_nvmm_caps_1 = gst_caps_new_simple("video/x-raw",
+						"memory", G_TYPE_STRING, "NVMM",
+						"format", G_TYPE_STRING, "RGBA",
+						NULL);
+		GstCaps *rgba_caps_3 = gst_caps_new_simple("video/x-raw",
+						"format", G_TYPE_STRING, "RGBA",
+						NULL);
+		GstCaps *rgba_wh_caps_4 = gst_caps_new_simple("video/x-raw",
+						"format", G_TYPE_STRING, "RGBA",
+						"width", G_TYPE_INT, 480,
+						"height", G_TYPE_INT, 360,
+						NULL);
 		/* Set properties for the compositor sink_0 */
-		GstPad *sink_0_pad = gst_element_get_request_pad(comp, "sink_0");
-		g_object_set(G_OBJECT(sink_0_pad),
+		GstPad *comp_src_0_pad = gst_element_get_static_pad(comp, "src");
+
+		GstPad *comp_sink_0_pad = gst_element_get_request_pad(comp, "sink_0");
+		GstPad *comp_sink_1_pad = gst_element_get_request_pad(comp, "sink_1");
+
+		GstPad *v4l2src_src_pad =  gst_element_get_static_pad(v4l2_src, "src");
+	
+		GstPad *videotestsrc_src_pad =  gst_element_get_static_pad(video_test_src, "src");
+		
+		GstPad *conv1_sink_pad = gst_element_get_static_pad(nvvidconv1, "sink");
+		GstPad *conv1_src_pad =  gst_element_get_static_pad(nvvidconv1, "src");
+//		gst_pad_use_fixed_caps(conv1_sink_pad);
+	
+		GstCaps *yuv_wh_caps_2 = gst_caps_new_simple("video/x-raw",
+						"format", G_TYPE_STRING, "YUY2",
+						"width", G_TYPE_INT, 480,
+						"height", G_TYPE_INT, 360,
+						"framerate", GST_TYPE_FRACTION, 30, 1,
+						NULL);
+		GstPad *conv2_sink_pad = gst_element_get_static_pad(nvvidconv2, "sink");
+		GstPad *conv2_src_pad =  gst_element_get_static_pad(nvvidconv2, "src");
+		
+		GstPad *conv3_sink_pad = gst_element_get_static_pad(nvvidconv3, "sink");
+		GstPad *conv3_src_pad =  gst_element_get_static_pad(nvvidconv3, "src");
+
+		
+		GstPad *video_convert_sink_pad = gst_element_get_static_pad(video_convert, "sink");
+		GstPad *video_convert_src_pad =  gst_element_get_static_pad(video_convert, "src");
+		
+		GstPad *main_sink_sink_pad = gst_element_get_static_pad(main_sink, "sink");
+		
+		g_object_set(G_OBJECT(comp_sink_0_pad),
 						"xpos", 0,
 						"ypos", 0,
 						"width", 480,
@@ -41,8 +80,7 @@ int main(int argc, char *argv[]) {
 						NULL);
 
 		/* Set properties for the compositor sink_1 */
-		GstPad *sink_1_pad = gst_element_get_request_pad(comp, "sink_1");
-		g_object_set(G_OBJECT(sink_1_pad),
+		g_object_set(G_OBJECT(comp_sink_1_pad),
 						"xpos", 0,
 						"ypos", 0,
 						"width", 480,
@@ -51,114 +89,84 @@ int main(int argc, char *argv[]) {
 						"alpha", 0.5,
 						NULL);
 
-		caps_1 = gst_caps_new_simple("video/x-raw",
-						"memory", G_TYPE_STRING, "NVMM",
-						"format", G_TYPE_STRING, "RGBA",
-						NULL);
-		caps_2 = gst_caps_new_simple("video/x-raw",
-						"format", G_TYPE_STRING, "YUY2",
-						"width", G_TYPE_INT, 480,
-						"height", G_TYPE_INT, 360,
-						"framerate", GST_TYPE_FRACTION, 30, 1,
-						NULL);
-//		caps_3 = gst_caps_new_simple("video/x-raw",
-//						NULL);
-		caps_4 = gst_caps_new_simple("video/x-raw",
-						"format", G_TYPE_STRING, "RGBA",
-						"width", G_TYPE_INT, 480,
-						"height", G_TYPE_INT, 360,
-						NULL);
 
 		/* Set properties for the source */
-		g_object_set(G_OBJECT(src),
+		g_object_set(G_OBJECT(video_test_src),
 						"pattern", 0, // 0 is the default pattern (smpte)
 						NULL);
-
 		/* Add elements to the pipeline */
-		gst_bin_add_many(GST_BIN(pipeline), comp, src, src2, conv1, conv2, sink, NULL);
+		gst_bin_add_many(GST_BIN(pipeline), comp, video_test_src, v4l2_src, nvvidconv1, nvvidconv2, nvvidconv3, video_convert, main_sink, NULL);
 
-		/* Link the elements with appropriate caps */
-		if (!gst_element_link_filtered(src, conv1, caps_2)) {
-				g_printerr("Failed to link videotestsrc to nvvidconv.\n");
-				return -1;
-		}
-
-		if (!gst_element_link_filtered(src2, conv2, NULL)) {
-				g_printerr("Failed to link v4l2src to videoconverter.\n");
-				return -1;
-		}
-		if (!gst_element_link_filtered(conv2, conv1, NULL)) {
-				g_printerr("Failed to link videoconverter to nvvidconv.\n");
-				return -1;
-		}
-
-		if (!gst_element_link_filtered( conv1,sink,NULL)) {
-				g_printerr("Failed to link comp to xvimagesink.\n");
-				return -1;
-		}
-		
-	//link the sink pad of the comp to the source pad of conv1
-	if (!gst_element_link_filtered(comp, conv1, caps_1)) {
-				g_printerr("Failed to link comp to xvimagesink.\n");
-				return -1;
-		}
-#if 0
-		if (gst_pad_link_filtered(conv1_pad,sink_0_pad, caps_1)) {        
-				g_printerr("Failed to link sink_0 pad of comp to conv1.\n");
-				return -1;
-		}
-		if (gst_pad_link_filtered(conv1_pad,sink_1_pad, caps_4)) {        
-				g_printerr("Failed to link sink_0 pad of comp to conv1.\n");
+#if 1
+		if (!gst_pad_set_caps(conv1_sink_pad, yuv_wh_caps_2)) {
+				g_printerr("Failed to set caps on111221 videotestsrc pad.\n");
 				return -1;
 		}
 #endif
-		/* Connect sink_0 pad of comp to conv1 with caps_1 */
-		conv1_src_pad = gst_element_get_static_pad(conv1, "src");
-		conv1_sink_pad = gst_element_get_static_pad(conv1, "sink");
-		if (gst_pad_link( conv1_sink_pad, sink_0_pad) != GST_PAD_LINK_OK) {
-				g_printerr("Failed to link sink_0 pad of comp to conv1.\n");
+		/* videotestsrc pipeline */
+		if (gst_pad_link( videotestsrc_src_pad, conv1_sink_pad) != GST_PAD_LINK_OK) {
+				g_printerr("Failed to link conv1_sink_pad to coi@mp_src0pad\n");
 				return -1;
 		}
+		if (gst_pad_link( conv1_src_pad, comp_sink_0_pad) != GST_PAD_LINK_OK) {
+				g_printerr("Failed to link conv1_sink_pad to comp_src0pad\n");
+				return -1;
+		}
+//		gst_object_unref(conv1_src_pad);
 
-		/* Set the caps on conv1_pad */
-		if (!gst_pad_set_caps(conv1_pad, caps_1)) {
+		/* Set the caps on conv1_pad and comp_src0pad*/
+#ifdef TO_REINSTATE_aFTER_VERIFICATION
+		if (!gst_pad_set_caps(conv1_src_pad, rgba_nvmm_caps_1)) {
 				g_printerr("Failed to set caps on conv1 pad.\n");
+				return -1;
+		}
+		if (!gst_pad_set_caps(comp_sink_0_pad, rgba_nvmm_caps_1)) {
+				g_printerr("Failed to set caps on sink-0comp pad.\n");
+				return -1;
+		}
+#endif
+
+//		gst_object_unref(comp_sink_0_pad);
+		//2nd pipeline 
+		if (gst_pad_link( v4l2src_src_pad, video_convert_sink_pad) != GST_PAD_LINK_OK) {
+				g_printerr("2Failed to link sink_0 pad of comp to conv1.\n");
 				return -1;
 		}
 		
-		if (gst_pad_link( conv1_pad, sink_1_pad) != GST_PAD_LINK_OK) {
+		if (gst_pad_link( video_convert_src_pad, conv2_sink_pad) != GST_PAD_LINK_OK) {
+				g_printerr("1Failed to link sink_0 pad of comp to conv1.\n");
+				return -1;
+		}
+
+
+		if (gst_pad_link( conv2_src_pad, comp_sink_1_pad) != GST_PAD_LINK_OK) {
+				g_printerr("33Failed to link sink_0 pad of comp to conv1.\n");
+				return -1;
+		}
+#if 0
+		/* Set the caps on conv1_pad and comp_src0pad*/
+		if (!gst_pad_set_caps(conv2_src_pad, rgba_wh_caps_4)) {
+				g_printerr("Failed to set caps on conv1 pad.\n");
+				return -1;
+		}
+		if (!gst_pad_set_caps(comp_sink_1_pad, rgba_wh_caps_4)) {
+				g_printerr("Failed to set caps on conv1 pad.\n");
+				return -1;
+		}
+#endif	
+//		gst_object_unref(comp_sink_1_pad);
+		//main pipeline
+		//here we join the two sources to compositor.
+
+		if (gst_pad_link( comp_src_0_pad, conv3_sink_pad) != GST_PAD_LINK_OK) {
+				g_printerr("55Failed to link sink_0 pad of comp to conv1.\n");
+				return -1;
+		}
+
+		if (gst_pad_link( conv3_src_pad, main_sink_sink_pad) != GST_PAD_LINK_OK) {
 				g_printerr("Failed to link sink_0 pad of comp to conv1.\n");
 				return -1;
 		}
-
-		/* Set the caps on conv1_pad */
-		if (!gst_pad_set_caps(conv1_pad, caps_4)) {
-				g_printerr("Failed to set caps on conv1 pad.\n");
-				return -1;
-		}
-
-		if (gst_pad_link(sink_0_pad, conv1_src_pad) != GST_PAD_LINK_OK) {
-				g_printerr("Failed to link sink_0 pad of comp  src padconv1.\n");
-				return -1;
-		}
-
-		/* Set the caps on conv1_pad */
-		if (!gst_pad_set_caps(conv1_src_pad, caps_1)) {
-				g_printerr("Failed to set caps on conv1 pad.\n");
-				return -1;
-		}
-		
-		if (gst_pad_link( conv1_pad, sink_1_pad) != GST_PAD_LINK_OK) {
-				g_printerr("Failed to link sink_0 pad of comp to conv1.\n");
-				return -1;
-		}
-
-		/* Set the caps on conv1_pad */
-		if (!gst_pad_set_caps(conv1_pad, caps_4)) {
-				g_printerr("Failed to set caps on conv1 pad.\n");
-				return -1;
-		}
-
 
 		/* Set the pipeline state to playing */
 		ret = gst_element_set_state(pipeline, GST_STATE_PLAYING);
@@ -196,15 +204,31 @@ int main(int argc, char *argv[]) {
 				}
 				gst_message_unref (msg);
 		}
-
-
 		/* Free resources */
-		gst_caps_unref(caps_1);
-		gst_caps_unref(caps_2);
+		gst_caps_unref(rgba_nvmm_caps_1);
+		gst_caps_unref(yuv_wh_caps_2);
+		gst_caps_unref(rgba_caps_3);
+		gst_caps_unref(rgba_wh_caps_4);
 
+		gst_object_unref(comp_src_0_pad);
+		gst_object_unref(conv1_sink_pad);
+//		gst_object_unref(conv2_sink_pad);
+
+#if 0
+		/* Release elements */
+		gst_object_unref(main_sink);
+		gst_object_unref(video_convert);
+		gst_object_unref(nvvidconv3);
+		gst_object_unref(nvvidconv2);
+		gst_object_unref(nvvidconv1);
+		gst_object_unref(v4l2_src);
+		gst_object_unref(video_test_src);
+		gst_object_unref(comp);
+		gst_object_unref(pipeline);
+
+#endif
 		gst_object_unref(bus);
 		gst_element_set_state(pipeline, GST_STATE_NULL);
-		gst_object_unref(pipeline);
 		return 0;
 }
 
