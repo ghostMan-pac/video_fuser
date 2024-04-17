@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
 
 #if 1
 		if (!gst_pad_set_caps(conv1_sink_pad, yuv_wh_caps_2)) {
-				g_printerr("Failed to set caps on111221 videotestsrc pad.\n");
+				g_printerr("Failed to set caps videotest src pad.\n");
 				return -1;
 		}
 #endif
