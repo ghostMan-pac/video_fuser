@@ -148,6 +148,11 @@ int main(int argc, char *argv[]) {
 				return -1 ;	
 		}
 		
+		if(!gst_element_link_many(comp,nvc1_filter,nvvidconv3,main_sink, NULL)){
+				g_printerr("1Elements could not be linked. \n");
+				gst_object_unref(pipeline);
+				return -1 ;	
+		}
 		if (gst_pad_link( nvv1_filter_src_pad, comp_sink_0_pad) != GST_PAD_LINK_OK) {
 				g_printerr("44Failed to link sink_0 pad of comp to conv1.\n");
 				return -1;
@@ -156,11 +161,6 @@ int main(int argc, char *argv[]) {
 		if (gst_pad_link( nvv2_filter_src_pad, comp_sink_1_pad) != GST_PAD_LINK_OK) {
 				g_printerr("33Failed to link sink_0 pad of comp to conv1.\n");
 				return -1;
-		}
-		if(!gst_element_link_many(comp,nvc1_filter,nvvidconv3,main_sink, NULL)){
-				g_printerr("1Elements could not be linked. \n");
-				gst_object_unref(pipeline);
-				return -1 ;	
 		}
 
 #endif	
