@@ -1,7 +1,7 @@
 # video_fuser
-The application will be able to duse two webcam streams overlayed on top of each other using gstreamer
+The application will be able to use two webcam streams overlayed on top of each other using gstreamer
 
-
+This application is intended for testing out the capability of the nvidia agx and nano development boards when handling two streams together.
 
 `gst-launch-1.0 \
 nvcompositor name=comp \
